@@ -1,0 +1,424 @@
+// EstateHub — Prisma schema (SQLite for local dev)
+// Switch provider to "postgresql" + set DATABASE_URL for production (Neon / Supabase).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ─── Users ────────────────────────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  clerkId       String?  @unique
+  phone         String   @unique
+  email         String?  @unique
+  name          String?
+  photoUrl      String?
+  isKycVerified Boolean  @default(false)
+  roles         String   @default("[]")   // JSON string[] e.g. ["OWNER","RESIDENT"]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  ownedProperties   Property[]      @relation("PropertyOwner")
+  savedProperties   SavedProperty[]
+  visitsAsBuyer     Visit[]         @relation("VisitBuyer")
+  residentships     Residentship[]
+  savedSearches     SavedSearch[]
+  offersAsBuyer     Offer[]         @relation("OfferBuyer")
+  offerMessages     OfferMessage[]  @relation("MessageSender")
+  pollVotes         PollVote[]
+
+  @@index([phone])
+}
+
+// ─── Properties (Marketplace) ─────────────────────────────────────────────
+
+model Property {
+  id           String  @id @default(cuid())
+  ownerId      String
+  owner        User    @relation("PropertyOwner", fields: [ownerId], references: [id])
+
+  // SELL | RENT
+  intent       String
+  // APARTMENT | VILLA | PLOT | INDEPENDENT_HOUSE | COMMERCIAL
+  type         String
+  // DRAFT | PENDING_VERIFICATION | LIVE | SOLD | RENTED | WITHDRAWN
+  status       String  @default("DRAFT")
+  // SELF_DECLARED | DOCUMENT_VERIFIED | PHYSICALLY_VERIFIED
+  verification String  @default("SELF_DECLARED")
+
+  societyId    String?
+  society      Society? @relation(fields: [societyId], references: [id])
+  addressLine  String
+  locality     String
+  city         String
+  state        String
+  pincode      String
+  latitude     Float?
+  longitude    Float?
+
+  bhk          Int
+  carpetArea   Int
+  bathrooms    Int      @default(1)
+  balconies    Int      @default(0)
+  // UNFURNISHED | SEMI_FURNISHED | FULLY_FURNISHED
+  furnishing   String   @default("UNFURNISHED")
+  ageYears     Int?
+  floor        Int?
+  totalFloors  Int?
+  facing       String?
+
+  price                Decimal
+  pricePerSqft         Decimal?
+  isNegotiable         Boolean  @default(true)
+  maintenanceMonthly   Decimal?
+  availableFrom        DateTime?
+
+  photos       PropertyPhoto[]
+  videoUrl     String?
+  tour360Url   String?
+  floorPlanUrl String?
+
+  title        String
+  description  String?
+  amenities    String  @default("[]")   // JSON string[]
+  publishedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  visits   Visit[]
+  savedBy  SavedProperty[]
+  offers   Offer[]
+
+  @@index([city, locality])
+  @@index([status, intent])
+  @@index([ownerId])
+}
+
+model PropertyPhoto {
+  id         String   @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  url        String
+  caption    String?
+  roomTag    String?
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([propertyId])
+}
+
+model SavedProperty {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, propertyId])
+}
+
+model Visit {
+  id          String   @id @default(cuid())
+  buyerId     String
+  buyer       User     @relation("VisitBuyer", fields: [buyerId], references: [id])
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id])
+  scheduledAt DateTime
+  // IN_PERSON | VIRTUAL
+  type        String   @default("IN_PERSON")
+  // REQUESTED | CONFIRMED | COMPLETED | CANCELLED | NO_SHOW
+  status      String   @default("REQUESTED")
+  notes       String?
+  rating      Int?
+  feedback    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([buyerId])
+  @@index([propertyId])
+}
+
+// ─── Society / Community Management ──────────────────────────────────────
+
+model Society {
+  id          String   @id @default(cuid())
+  name        String
+  addressLine String
+  locality    String
+  city        String
+  state       String
+  pincode     String
+  totalFlats  Int      @default(0)
+  reraId      String?
+  amenityTags String   @default("[]")   // JSON string[] — list of amenity names e.g. ["Pool","Gym"]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  flats            Flat[]
+  properties       Property[]
+  residentships    Residentship[]
+  bookableAmenities Amenity[]
+  notices          Notice[]
+  polls            Poll[]
+
+  @@index([city, locality])
+}
+
+model Flat {
+  id        String   @id @default(cuid())
+  societyId String
+  society   Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  tower     String
+  flatNo    String
+  bhk       Int?
+  carpetArea Int?
+  createdAt DateTime @default(now())
+
+  residentships   Residentship[]
+  visitorPasses   VisitorPass[]
+  bills           MaintenanceBill[]
+  amenityBookings AmenityBooking[]
+  complaints      Complaint[]
+
+  @@unique([societyId, tower, flatNo])
+}
+
+model Residentship {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  societyId String
+  society   Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  flatId    String
+  flat      Flat     @relation(fields: [flatId], references: [id], onDelete: Cascade)
+  // OWNER | TENANT | FAMILY_MEMBER
+  type      String   @default("OWNER")
+  // PENDING_VERIFICATION | ACTIVE | INACTIVE
+  status    String   @default("PENDING_VERIFICATION")
+  movedInAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, flatId])
+  @@index([societyId])
+}
+
+model VisitorPass {
+  id           String   @id @default(cuid())
+  flatId       String
+  flat         Flat     @relation(fields: [flatId], references: [id])
+  visitorName  String
+  visitorPhone String?
+  vehicleNo    String?
+  otp          String
+  qrToken      String   @unique
+  validFrom    DateTime @default(now())
+  validUntil   DateTime
+  // ACTIVE | USED | EXPIRED | REVOKED
+  status       String   @default("ACTIVE")
+  enteredAt    DateTime?
+  exitedAt     DateTime?
+  createdAt    DateTime @default(now())
+
+  @@index([flatId])
+  @@index([qrToken])
+}
+
+model MaintenanceBill {
+  id         String   @id @default(cuid())
+  flatId     String
+  flat       Flat     @relation(fields: [flatId], references: [id])
+  cycleMonth Int
+  cycleYear  Int
+  amount     Decimal
+  breakdown  String   @default("[]")   // JSON BreakdownItem[]
+  dueDate    DateTime
+  // PENDING | PAID | OVERDUE | CANCELLED
+  status     String   @default("PENDING")
+  paidAt     DateTime?
+  paymentRef String?
+  lateFee    Decimal  @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([flatId, cycleMonth, cycleYear])
+  @@index([flatId])
+  @@index([status])
+}
+
+// ─── Amenities & Bookings ─────────────────────────────────────────────────
+
+model Amenity {
+  id            String   @id @default(cuid())
+  societyId     String
+  society       Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  icon          String?
+  isFree        Boolean  @default(true)
+  feeAmount     Decimal?
+  deposit       Decimal?
+  maxDuration   Int?
+  advanceWindow Int      @default(7)
+  createdAt     DateTime @default(now())
+
+  bookings AmenityBooking[]
+
+  @@index([societyId])
+}
+
+model AmenityBooking {
+  id         String   @id @default(cuid())
+  amenityId  String
+  amenity    Amenity  @relation(fields: [amenityId], references: [id])
+  flatId     String
+  flat       Flat     @relation(fields: [flatId], references: [id])
+  date       DateTime
+  startTime  String
+  endTime    String
+  feeAmount  Decimal?
+  deposit    Decimal?
+  // CONFIRMED | CANCELLED | COMPLETED
+  status     String   @default("CONFIRMED")
+  paymentRef String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([amenityId])
+  @@index([flatId])
+}
+
+// ─── Complaints ────────────────────────────────────────────────────────────
+
+model Complaint {
+  id          String   @id @default(cuid())
+  flatId      String
+  flat        Flat     @relation(fields: [flatId], references: [id])
+  // PLUMBING | ELECTRICAL | LIFT | SECURITY | CIVIL | PEST_CONTROL | HOUSEKEEPING | OTHER
+  category    String
+  description String
+  // INSIDE_FLAT | COMMON_AREA
+  location    String   @default("INSIDE_FLAT")
+  photos      String   @default("[]")   // JSON string[]
+  // OPEN | ASSIGNED | IN_PROGRESS | RESOLVED | CLOSED | REOPENED
+  status      String   @default("OPEN")
+  slaHours    Int      @default(24)
+  rating      Int?
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  updates ComplaintUpdate[]
+
+  @@index([flatId])
+  @@index([status])
+}
+
+model ComplaintUpdate {
+  id          String    @id @default(cuid())
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  message     String
+  statusTo    String?
+  createdAt   DateTime  @default(now())
+
+  @@index([complaintId])
+}
+
+// ─── Notices ──────────────────────────────────────────────────────────────
+
+model Notice {
+  id        String   @id @default(cuid())
+  societyId String
+  society   Society  @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([societyId])
+}
+
+// ─── Polls ────────────────────────────────────────────────────────────────
+
+model Poll {
+  id          String    @id @default(cuid())
+  societyId   String
+  society     Society   @relation(fields: [societyId], references: [id], onDelete: Cascade)
+  question    String
+  options     String    @default("[]")   // JSON string[]
+  endsAt      DateTime?
+  isAnonymous Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  votes PollVote[]
+
+  @@index([societyId])
+}
+
+model PollVote {
+  id        String   @id @default(cuid())
+  pollId    String
+  poll      Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  option    String
+  createdAt DateTime @default(now())
+
+  @@unique([pollId, userId])
+}
+
+// ─── Saved Searches ────────────────────────────────────────────────────────
+
+model SavedSearch {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String?
+  filters   String   @default("{}")   // JSON object
+  alertsOn  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ─── Offers ───────────────────────────────────────────────────────────────
+
+model Offer {
+  id         String   @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id])
+  buyerId    String
+  buyer      User     @relation("OfferBuyer", fields: [buyerId], references: [id])
+  amount     Decimal
+  validUntil DateTime
+  // PENDING | ACCEPTED | COUNTERED | REJECTED | WITHDRAWN | EXPIRED
+  status     String   @default("PENDING")
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  messages OfferMessage[]
+
+  @@index([propertyId])
+  @@index([buyerId])
+}
+
+model OfferMessage {
+  id        String   @id @default(cuid())
+  offerId   String
+  offer     Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User     @relation("MessageSender", fields: [senderId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([offerId])
+}
