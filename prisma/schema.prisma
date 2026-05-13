@@ -16,6 +16,7 @@ model User {
   email         String?  @unique
   name          String?
   photoUrl      String?
+  passwordHash  String?
   isKycVerified Boolean  @default(false)
   roles         String   @default("[]")   // JSON string[] e.g. ["OWNER","RESIDENT"]
   createdAt     DateTime @default(now())
