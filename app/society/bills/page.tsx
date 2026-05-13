@@ -65,7 +65,7 @@ export default async function BillsPage() {
                 </p>
                 <p className="text-xs text-brand-muted mt-0.5">
                   Due {new Date(bill.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                  {bill.lateFee > 0 && <span className="text-red-500 ml-2">+ {formatPrice(bill.lateFee.toString())} late fee</span>}
+                  {Number(bill.lateFee) > 0 && <span className="text-red-500 ml-2">+ {formatPrice(bill.lateFee.toString())} late fee</span>}
                 </p>
               </div>
               <div className="flex items-center gap-3">

@@ -78,10 +78,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const { amenities, ...rest } = parsed.data;
     const property = await prisma.property.create({
       data: {
-        ...parsed.data,
-        status: "DRAFT" // owners must explicitly publish via a separate action
+        ...rest,
+        amenities: JSON.stringify(amenities),
+        status: "DRAFT"
       }
     });
     return NextResponse.json({ data: property }, { status: 201 });
