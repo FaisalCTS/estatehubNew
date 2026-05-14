@@ -565,3 +565,9 @@ npm run db:seed
 > taken from your browser. Tools like Snipping Tool (Windows), Cmd+Shift+4 (Mac), or
 > the browser's built-in screenshot feature work well. Save images to `docs/screenshots/`
 > and update the placeholders with: `![Description](screenshots/filename.png)`
+--
+Environment Variable
+DATABASE_URL="postgresql://postgres.hlomxcpgindfjdhwuckp:Supabase12%40@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require"
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+NODE_ENV="development"
+JWT_SECRET="estatehub-local-dev-jwt-secret-change-for-production"
